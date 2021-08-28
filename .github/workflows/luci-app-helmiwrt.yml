@@ -23,9 +23,6 @@ env:
   REPO_BRANCH: master
   CONFIG_FILE: helmiwrt/luci-app-helmiwrt.config
   DIY_SH: helmiwrt/luci-app-helmiwrt.sh
-  IPV6MOD_IN_FIRMWARE: false
-  KMODS_IN_FIRMWARE: false
-  WEBROOT: /data/dnmp/www/openwrt.cc
   UPLOAD_FIRMWARE: true
   UPLOAD_BIN_DIR: true
   UPLOAD_RELEASE: true
@@ -70,8 +67,8 @@ jobs:
           echo "OPENWRTROOT=$PWD" >> $GITHUB_ENV
           echo "::set-output name=OPENWRTROOT::$(echo $PWD)"
           mkdir customfeeds
-          ../$DIY_SH
           chmod +x ../helmiwrt/*.sh
+          ../$DIY_SH
 #          git clone --depth=1 https://github.com/coolsnowwolf/packages customfeeds/packages
 #          git clone --depth=1 https://github.com/coolsnowwolf/luci customfeeds/luci
 #          chmod +x ../helmiwrt/*.sh
