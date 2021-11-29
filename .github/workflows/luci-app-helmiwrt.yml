@@ -1,195 +1,64 @@
 #=================================================
-# https://github.com/P3TERX/Actions-OpenWrt
-# Description: Build OpenWrt using GitHub Actions
+# Description: Build HelmiWrt Packages IPK using GitHub Actions
 # Lisence: MIT
-# Author: P3TERX
-# Blog: https://p3terx.com
+# Author: Helmi Amirudin
+# Blog: https://helmiau.com
 # HelmiWrt by helmiau.com
 #=================================================
 
 name: HelmiWrt LuCI App Packages Builder
 
 on:
-  repository_dispatch:
-    types: [lean, helmiwrt-packages]
   workflow_dispatch:
-#  schedule:
-#    - cron: 0 17 * * *
-#  watch:
-#    types: started
-
-env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
-  CONFIG_FILE: helmiwrt/luci-app-helmiwrt.config
-  DIY_SH: helmiwrt/luci-app-helmiwrt.sh
-  UPLOAD_FIRMWARE: true
-  UPLOAD_BIN_DIR: true
-  UPLOAD_RELEASE: true
-  TZ: Asia/Jakarta
+    inputs:
+      sdk_image_name:
+        description: "OpenWRT SDK image name"
+        required: true
+        default: "rockchip-armv8-21.02-SNAPSHOT"
 
 jobs:
-  Build:
-    runs-on: ubuntu-18.04
-
-    outputs:
-      OPENWRTROOT: ${{ steps.update.outputs.OPENWRTROOT }}
-      PLATFORM: ${{ steps.compile.outputs.PLATFORM }}
-      TARGET: ${{ steps.compile.outputs.TARGET }}
-      SUBTARGET: ${{ steps.compile.outputs.SUBTARGET }}
-      FIRMWARE: ${{ steps.compile.outputs.FIRMWARE }}
-      GENERATE_STATUS: ${{ steps.generate.outputs.GENERATE_STATUS }}
+  build-docker:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@main
+      - uses: actions/checkout@v2
 
-      - name: Initialization Environment
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Clone Makefile
         run: |
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo -E apt-get -qq update
-          sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-1804) tree
-          sudo -E apt-get -qq autoremove --purge
-          sudo -E apt-get -qq clean
-          sudo ln -sf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
-
-      - name: Clone Source Code
-        run: |
-          df -hT $PWD
-          git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
-
-      - name: Update Feeds
-        id: update
-        run: |
-          cd openwrt
-          echo "OPENWRTROOT=$PWD" >> $GITHUB_ENV
-          echo "::set-output name=OPENWRTROOT::$(echo $PWD)"
-          mkdir customfeeds
-          mkdir package/community
-          pushd package/community
           git clone --depth=1 https://github.com/helmiau/helmiwrt-packages
-#          chmod +x ../helmiwrt/*.sh
-#          git clone --depth=1 https://github.com/coolsnowwolf/packages customfeeds/packages
-#          git clone --depth=1 https://github.com/coolsnowwolf/luci customfeeds/luci
-#          chmod +x ../helmiwrt/*.sh
-#          ../helmiwrt/hook-feeds.sh
-#          ../$DIY_SH
 
-      - name: Install Feeds
+      - name: Build IPK ${{ github.event.inputs.sdk_image_name }}
         run: |
-          cd $OPENWRTROOT
-          ./scripts/feeds install -a
+          docker run -v "$PWD/build/bin:/home/build/openwrt/bin:Z" \
+                     -v "$PWD/build/sdk-build.sh:/home/build/openwrt/luci-app-helmiwrt.sh" \
+                     -v "$PWD/luci-app-libernet:/home/build/openwrt/package/luci-app-libernet" \
+                     -v "$PWD/luci-app-libernet-bin:/home/build/openwrt/package/luci-app-libernet-bin" \
+                     -v "$PWD/luci-app-libernet-plus:/home/build/openwrt/package/luci-app-libernet-plus" \
+                     -v "$PWD/luci-app-mikhmon:/home/build/openwrt/package/luci-app-mikhmon" \
+                     -v "$PWD/luci-app-openspeedtest:/home/build/openwrt/package/luci-app-openspeedtest" \
+                     -v "$PWD/luci-app-shutdown:/home/build/openwrt/package/luci-app-shutdown" \
+                     -v "$PWD/luci-app-tinyfm:/home/build/openwrt/package/luci-app-tinyfm" \
+                     -v "$PWD/luci-app-v2raya:/home/build/openwrt/package/luci-app-v2raya" \
+                     -v "$PWD/luci-app-xderm-bin:/home/build/openwrt/package/luci-app-xderm-bin" \
+                     -v "$PWD/luci-app-xderm:/home/build/openwrt/package/luci-app-xderm" \
+                     -v "$PWD/luci-app-xderm-limit:/home/build/openwrt/package/luci-app-xderm-limit" \
+                     -v "$PWD/luci-app-freevpnsite:/home/build/openwrt/package/luci-app-freevpnsite" \
+                     -v "$PWD/luci-app-wegare:/home/build/openwrt/package/luci-app-wegare" \
+                    openwrtorg/sdk:${{ github.event.inputs.sdk_image_name }} /bin/bash /home/build/openwrt/luci-app-helmiwrt.sh
 
-      - name: Load Custom Configuration
+      - name: Find Package
+        id: find_package
         run: |
-          [ -e files ] && mv files $OPENWRTROOT/files
-          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE $OPENWRTROOT/.config
-          cd $OPENWRTROOT
-#          ../$DIY_SH
+          ipk_path=`find build/bin -name 'luci-app-*.ipk'`
+          if [[ -z "$ipk_path" ]]; then
+            echo "::error title=Find IPK::Couldn't find generated ipk's"
+            exit 1
+          fi
+          echo "::set-output name=ipk_path::$ipk_path"
+          echo "::set-output name=ipk_name::$(basename $ipk_path)"
 
-      - name: Download Package
-        id: package
-        run: |
-          cd $OPENWRTROOT
-          make defconfig
-          make download -j8
-          find dl -size -1024c -exec ls -l {} \;
-          find dl -size -1024c -exec rm -f {} \;
-
-      - name: Compile Packages
-        id: compile
-        run: |
-          cd $OPENWRTROOT
-          echo -e "$(nproc) thread compile"
-          make tools/compile -j$(nproc) || make tools/compile -j1 V=s
-          make toolchain/compile -j$(nproc) || make toolchain/compile -j1 V=s
-          make target/compile -j$(nproc) || make target/compile -j1 V=s IGNORE_ERRORS=1
-          make diffconfig
-          make package/compile -j$(nproc) IGNORE_ERRORS=1 || make package/compile -j1 V=s IGNORE_ERRORS=1
-          make package/index
-          cd $OPENWRTROOT/bin/packages/*
-          PLATFORM=$(basename `pwd`)
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
-          echo "::set-output name=PLATFORM::$(echo $PLATFORM)"
-          cd $OPENWRTROOT/bin/targets/*
-          TARGET=$(basename `pwd`)
-          echo "TARGET=$TARGET" >> $GITHUB_ENV
-          echo "::set-output name=TARGET::$(echo $TARGET)"
-          cd *
-          SUBTARGET=$(basename `pwd`)
-          echo "SUBTARGET=$SUBTARGET" >> $GITHUB_ENV
-          echo "::set-output name=SUBTARGET::$(echo $SUBTARGET)"
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-          echo "::set-output name=FIRMWARE::$(echo $PWD)"
-          echo "::set-output name=COMPILE_STATUS::success"
-          echo "FILE_DATE=$(date +"%Y.%m.%d")" >> $GITHUB_ENV
-          echo "::set-output name=GENERATE_STATUS::success"
-
-      - name: Upload Bin Folder
-        uses: actions/upload-artifact@main
-        if: steps.generate.outputs.GENERATE_STATUS == 'success'
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v2
         with:
-          name: bin-archive
-          path: openwrt/bin/packages/*.ipk
-
-      - name: Organize Files
-        id: organize
-        if: env.UPLOAD_FIRMWARE == 'true' && steps.generate.outputs.GENERATE_STATUS == 'success' && !cancelled()
-        run: |
-          cd openwrt/bin/targets/*/*
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-          echo "::set-output name=status::success"
-          echo "::set-output name=ORGANIZE_STATUS::success"
-#          rm -rf packages
-
-      - name: Upload Firmware Files to GitHub Actions
-        uses: kittaakos/upload-artifact-as-is@master
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
-        with:
-          path: ${{ env.FIRMWARE }}/*.ipk
-
-      - name: Delete Older Releases and Tags
-        uses: dev-drprasad/delete-older-releases@v0.2.0
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
-        with:
-          keep_latest: 10
-          delete_tags: true
-          delete_tag_pattern: helmiwrt-packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate New Release Tag
-        id: tag
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
-        run: |
-          sleep 20
-          echo "::set-output name=release_tag::helmiwrt-packages-${{ env.FILE_DATE }}"
-          touch release.txt
-          echo "::set-output name=status::success"
-
-      - name: Upload Packages to GitHub Release
-        uses: softprops/action-gh-release@v1
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.tag.outputs.status == 'success' && !cancelled()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          name: HelmiWrt ${{ env.FILE_DATE }}
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: ${{ env.FIRMWARE }}/*.ipk
-          body: |
-            HelmiWrt Packages is custom OpenWrt IPK build
-            [Read more information here](https://www.helmiau.com/blog/helmiwrt-packages)
-
-      - name: Delete Workflow Runs
-        uses: GitRML/delete-workflow-runs@main
-        with:
-          retain_days: 1
-          keep_minimum_runs: 3
-
-      - name: Delete Artifacts
-        uses: geekyeggo/delete-artifact@v1
-        with:
-          name: |
-            bin-archive
+          name: ${{ steps.find_package.outputs.ipk_name }}
+          path: ${{ steps.find_package.outputs.ipk_path }}
