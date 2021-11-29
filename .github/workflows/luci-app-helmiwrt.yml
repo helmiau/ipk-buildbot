@@ -30,7 +30,7 @@ jobs:
       - name: Build IPK ${{ github.event.inputs.sdk_image_name }}
         run: |
           docker run -v "$PWD/build/bin:/home/build/openwrt/bin:Z" \
-                     -v "$PWD/build/sdk-build.sh:/home/build/openwrt/luci-app-helmiwrt.sh" \
+                     -v "$PWD/helmiwrt/luci-app-helmiwrt.sh:/home/build/openwrt/luci-app-helmiwrt.sh" \
                      -v "$PWD/luci-app-libernet:/home/build/openwrt/package/luci-app-libernet" \
                      -v "$PWD/luci-app-libernet-bin:/home/build/openwrt/package/luci-app-libernet-bin" \
                      -v "$PWD/luci-app-libernet-plus:/home/build/openwrt/package/luci-app-libernet-plus" \
