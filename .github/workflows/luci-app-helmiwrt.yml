@@ -1,64 +1,126 @@
-#=================================================
-# Description: Build HelmiWrt Packages IPK using GitHub Actions
-# Lisence: MIT
-# Author: Helmi Amirudin
-# Blog: https://helmiau.com
-# HelmiWrt by helmiau.com
-#=================================================
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
 
-name: HelmiWrt LuCI App Packages Builder
+name: Build HelmiWrt Packages
 
 on:
   workflow_dispatch:
-    inputs:
-      sdk_image_name:
-        description: "OpenWRT SDK image name"
-        required: true
-        default: "rockchip-armv8-21.02-SNAPSHOT"
+
+env:
+  TZ: Asia/Jakarta
 
 jobs:
-  build-docker:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@main
 
-      - name: Clone Makefile
-        run: |
-          git clone --depth=1 https://github.com/helmiau/helmiwrt-packages
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-2004)
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
 
-      - name: Build IPK ${{ github.event.inputs.sdk_image_name }}
-        run: |
-          docker run -v "$PWD/build/bin:/home/build/openwrt/bin:Z" \
-                     -v "$PWD/helmiwrt/luci-app-helmiwrt.sh:/home/build/openwrt/luci-app-helmiwrt.sh" \
-                     -v "$PWD/luci-app-libernet:/home/build/openwrt/package/luci-app-libernet" \
-                     -v "$PWD/luci-app-libernet-bin:/home/build/openwrt/package/luci-app-libernet-bin" \
-                     -v "$PWD/luci-app-libernet-plus:/home/build/openwrt/package/luci-app-libernet-plus" \
-                     -v "$PWD/luci-app-mikhmon:/home/build/openwrt/package/luci-app-mikhmon" \
-                     -v "$PWD/luci-app-openspeedtest:/home/build/openwrt/package/luci-app-openspeedtest" \
-                     -v "$PWD/luci-app-shutdown:/home/build/openwrt/package/luci-app-shutdown" \
-                     -v "$PWD/luci-app-tinyfm:/home/build/openwrt/package/luci-app-tinyfm" \
-                     -v "$PWD/luci-app-v2raya:/home/build/openwrt/package/luci-app-v2raya" \
-                     -v "$PWD/luci-app-xderm-bin:/home/build/openwrt/package/luci-app-xderm-bin" \
-                     -v "$PWD/luci-app-xderm:/home/build/openwrt/package/luci-app-xderm" \
-                     -v "$PWD/luci-app-xderm-limit:/home/build/openwrt/package/luci-app-xderm-limit" \
-                     -v "$PWD/luci-app-freevpnsite:/home/build/openwrt/package/luci-app-freevpnsite" \
-                     -v "$PWD/luci-app-wegare:/home/build/openwrt/package/luci-app-wegare" \
-                    openwrtorg/sdk:${{ github.event.inputs.sdk_image_name }} /bin/bash /home/build/openwrt/luci-app-helmiwrt.sh
+    - name: Clone source code
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        wget https://downloads.openwrt.org/releases/18.06.9/targets/brcm2708/bcm2710/openwrt-sdk-18.06.9-brcm2708-bcm2710_gcc-7.3.0_musl.Linux-x86_64.tar.xz -O openwrt-sdk.tar.xz
+        tar xvJf openwrt-sdk.tar.xz
+        mv openwrt-sdk ~/openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-      - name: Find Package
-        id: find_package
-        run: |
-          ipk_path=`find build/bin -name 'luci-app-*.ipk'`
-          if [[ -z "$ipk_path" ]]; then
-            echo "::error title=Find IPK::Couldn't find generated ipk's"
-            exit 1
-          fi
-          echo "::set-output name=ipk_path::$ipk_path"
-          echo "::set-output name=ipk_name::$(basename $ipk_path)"
+    - name: Load custom feeds
+      run: |
+        cd openwrt
+        # Clone HelmiWrt Packages
+        git clone https://github.com/helmiau/helmiwrt-packages.git package/feeds/helmiwrt-packages
+        # Clone Lean's feeds
+        mkdir customfeeds
+        git clone --depth=1 https://github.com/coolsnowwolf/packages customfeeds/packages
+        # Clone ImmortalWrt's feeds
+        pushd customfeeds
+        mkdir temp
+        git clone --depth=1 https://github.com/immortalwrt/packages -b openwrt-18.06 temp/packages
+        # Replace coolsnowwolf/lede php7 with immortalwrt source
+        rm -rf packages/lang/php7
+        cp -r temp/packages/lang/php7 packages/lang/php7
+        # Replace coolsnowwolf/lede perl with immortalwrt source
+        rm -rf packages/lang/perl
+        cp -r temp/packages/lang/perl packages/lang/perl
+        # Clearing temp directory
+        rm -rf temp
+        popd
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ steps.find_package.outputs.ipk_name }}
-          path: ${{ steps.find_package.outputs.ipk_path }}
+    - name: Update and Install Feeds
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Compile IPK
+      id: compile
+      env:
+        HELMIFEEDS: package/feeds/helmiwrt-packages/luci-app
+      run: |
+        cd openwrt
+        # Building packages
+        make $HELMIFEEDS-freevpnsite/compile V=99
+        make $HELMIFEEDS-libernet-bin/compile V=99
+        make $HELMIFEEDS-libernet-plus/compile V=99
+        make $HELMIFEEDS-libernet/compile V=99
+        make $HELMIFEEDS-mikhmon/compile V=99
+        make $HELMIFEEDS-netmon/compile V=99
+        make $HELMIFEEDS-openspeedtest/compile V=99
+        make $HELMIFEEDS-shutdown/compile V=99
+        make $HELMIFEEDS-tinyfm/compile V=99
+        make $HELMIFEEDS-v2raya/compile V=99
+        make $HELMIFEEDS-wegare/compile V=99
+        make $HELMIFEEDS-xderm-bin/compile V=99
+        make $HELMIFEEDS-xderm-limit/compile V=99
+        make $HELMIFEEDS-xderm/compile V=99
+        echo "::set-output name=status::success"
+
+    - name: Organize files
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd openwrt/bin/packages
+        find . -type f -name 'luci-app-libernet' | while read FILE ; do
+          echo -e "helmilog: ==== File ${FILE} founded at $(readlink -f ${FILE})" ;
+        done
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+
+#    - name: Generate release tag
+#      id: tag
+#      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+#      run: |
+#        echo "::set-output name=release_tag::$(date +"%Y.%m.%d-%H%M")"
+#        echo "::set-output name=status::success"
+
+#    - name: Upload firmware to release
+#      uses: softprops/action-gh-release@v1
+#      if: steps.tag.outputs.status == 'success' && !cancelled()
+#      env:
+#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      with:
+#        tag_name: ${{ steps.tag.outputs.release_tag }}
+#        body_path: release.txt
+#        files: ${{ env.FIRMWARE }}/*
