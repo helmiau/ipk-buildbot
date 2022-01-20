@@ -38,14 +38,13 @@ jobs:
         sudo chown $USER:$GROUPS /openwrt
 
     - name: Clone source code
+      env:
+        HELMIFEEDS: package/feeds/helmiwrt-packages/luci-app
       run: |
         df -hT $PWD
         wget https://downloads.openwrt.org/releases/18.06.9/targets/brcm2708/bcm2710/openwrt-sdk-18.06.9-brcm2708-bcm2710_gcc-7.3.0_musl.Linux-x86_64.tar.xz -O openwrt-sdk.tar.xz
         tar xvJf openwrt-sdk.tar.xz
         mv openwrt-sdk-* ~/openwrt
-
-    - name: Load custom feeds
-      run: |
         cd openwrt
         # Clone HelmiWrt Packages
         git clone https://github.com/helmiau/helmiwrt-packages.git package/feeds/helmiwrt-packages
@@ -65,18 +64,9 @@ jobs:
         # Clearing temp directory
         rm -rf temp
         popd
-
-    - name: Update and Install Feeds
-      run: |
+        # Update and Install Feeds
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-
-    - name: Compile IPK
-      id: compile
-      env:
-        HELMIFEEDS: package/feeds/helmiwrt-packages/luci-app
-      run: |
-        cd openwrt
         # Building packages
         make $HELMIFEEDS-freevpnsite/compile V=99
         make $HELMIFEEDS-libernet-bin/compile V=99
@@ -98,7 +88,7 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/packages
+        #cd openwrt/bin/packages
         find . -type f -name 'luci-app-libernet' | while read FILE ; do
           echo -e "helmilog: ==== File ${FILE} founded at $(readlink -f ${FILE})" ;
         done
