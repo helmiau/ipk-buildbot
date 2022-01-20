@@ -38,13 +38,11 @@ jobs:
         sudo chown $USER:$GROUPS /workdir
 
     - name: Clone source code
-      working-directory: /workdir
       run: |
         df -hT $PWD
         wget https://downloads.openwrt.org/releases/18.06.9/targets/brcm2708/bcm2710/openwrt-sdk-18.06.9-brcm2708-bcm2710_gcc-7.3.0_musl.Linux-x86_64.tar.xz -O openwrt-sdk.tar.xz
         tar xvJf openwrt-sdk.tar.xz
         mv openwrt-sdk-* ~/openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Load custom feeds
       run: |
