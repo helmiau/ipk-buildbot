@@ -1,114 +1,147 @@
-#
-# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
+#=================================================
 # https://github.com/P3TERX/Actions-OpenWrt
 # Description: Build OpenWrt using GitHub Actions
-#
+# Lisence: MIT
+# Author: P3TERX
+# Blog: https://p3terx.com
+# HelmiWrt by helmiau.com
+#=================================================
 
-name: Build HelmiWrt Packages
+name: Build IPK
 
 on:
   workflow_dispatch:
+#  schedule:
+#    - cron: 0 17 * * *
+#  watch:
+#    types: started
 
 env:
+  TOOLCHAIN_TAG: coolsnowwolf-lede-master
+  TOOLCHAIN_NAME: toolchain-image-coolsnowwolf-lede-master-rpi-4.img
+  CONFIG_FILE: config/universal.config
+  DIY_SH: scripts/lean-openwrt.sh
+  WEBROOT: /data/dnmp/www/openwrt.cc
+  UPLOAD_RELEASE: true
   TZ: Asia/Jakarta
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
+  Build:
+    runs-on: ubuntu-18.04
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@main
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-1804) rdate
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo ln -sf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
+          docker image prune -a -f
+          echo "FILE_DATE=$(date +"%Y.%m.%d")" >> $GITHUB_ENV
 
-    - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-2004)
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /openwrt
-        sudo chown $USER:$GROUPS /openwrt
+      - name: Free Up More Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 256
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
 
-    - name: Clone source code
-      env:
-        HELMIFEEDS: package/feeds/helmiwrt-packages/luci-app
-      run: |
-        df -hT $PWD
-        wget https://downloads.openwrt.org/releases/18.06.9/targets/brcm2708/bcm2710/openwrt-sdk-18.06.9-brcm2708-bcm2710_gcc-7.3.0_musl.Linux-x86_64.tar.xz -O openwrt-sdk.tar.xz
-        tar xvJf openwrt-sdk.tar.xz
-        mv openwrt-sdk-* ~/openwrt
-        cd openwrt
-        # Clone HelmiWrt Packages
-        git clone https://github.com/helmiau/helmiwrt-packages.git package/feeds/helmiwrt-packages
-        # Clone Lean's feeds
-        mkdir customfeeds
-        git clone --depth=1 https://github.com/coolsnowwolf/packages customfeeds/packages
-        # Clone ImmortalWrt's feeds
-        pushd customfeeds
-        mkdir temp
-        git clone --depth=1 https://github.com/immortalwrt/packages -b openwrt-18.06 temp/packages
-        # Replace coolsnowwolf/lede php7 with immortalwrt source
-        rm -rf packages/lang/php7
-        cp -r temp/packages/lang/php7 packages/lang/php7
-        # Replace coolsnowwolf/lede perl with immortalwrt source
-        rm -rf packages/lang/perl
-        cp -r temp/packages/lang/perl packages/lang/perl
-        # Clearing temp directory
-        rm -rf temp
-        popd
-        # Update and Install Feeds
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        # Building packages
-        make $HELMIFEEDS-freevpnsite/compile V=99
-        make $HELMIFEEDS-libernet-bin/compile V=99
-        make $HELMIFEEDS-libernet-plus/compile V=99
-        make $HELMIFEEDS-libernet/compile V=99
-        make $HELMIFEEDS-mikhmon/compile V=99
-        make $HELMIFEEDS-netmon/compile V=99
-        make $HELMIFEEDS-openspeedtest/compile V=99
-        make $HELMIFEEDS-shutdown/compile V=99
-        make $HELMIFEEDS-tinyfm/compile V=99
-        make $HELMIFEEDS-v2raya/compile V=99
-        make $HELMIFEEDS-wegare/compile V=99
-        make $HELMIFEEDS-xderm-bin/compile V=99
-        make $HELMIFEEDS-xderm-limit/compile V=99
-        make $HELMIFEEDS-xderm/compile V=99
-        echo "::set-output name=status::success"
+      - name: Checkout
+        uses: actions/checkout@main
 
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
-      run: |
-        #cd openwrt/bin/packages
-        find . -type f -name 'luci-app-libernet' | while read FILE ; do
-          echo -e "helmilog: ==== File ${FILE} founded at $(readlink -f ${FILE})" ;
-        done
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "::set-output name=status::success"
+      - name: Prepare Toolchain Image
+        id: prepare
+        run: |
+          df -hT $PWD
+          wget -q https://github.com/helmiau/OpenWrt-Toolchain/releases/download/$TOOLCHAIN_TAG/$TOOLCHAIN_NAME -O toolchain-image.img
+          mkdir openwrt-ro openwrt workdir overlay
+          sudo mount -o loop toolchain-image.img openwrt-ro
+          sudo mount -t overlay overlay -o lowerdir=openwrt-ro,upperdir=overlay,workdir=workdir openwrt
+          cd openwrt
+          echo "OPENWRTROOT=$PWD" >> $GITHUB_ENV
+          echo "::set-output name=OPENWRTROOT::$(echo $PWD)"
+          git pull
 
-#    - name: Generate release tag
-#      id: tag
-#      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-#      run: |
-#        echo "::set-output name=release_tag::$(date +"%Y.%m.%d-%H%M")"
-#        echo "::set-output name=status::success"
+      - name: Install Feeds
+        id: feeds
+        run: |
+          cd $OPENWRTROOT
+          chmod +x ../scripts/*.sh
+          ../scripts/hook-feeds.sh
 
-#    - name: Upload firmware to release
-#      uses: softprops/action-gh-release@v1
-#      if: steps.tag.outputs.status == 'success' && !cancelled()
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#      with:
-#        tag_name: ${{ steps.tag.outputs.release_tag }}
-#        body_path: release.txt
-#        files: ${{ env.FIRMWARE }}/*
+      - name: Load Custom Configuration
+        run: |
+          [ -e files ] && mv files $OPENWRTROOT/files
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE $OPENWRTROOT/.config
+          cd $OPENWRTROOT
+          ../$DIY_SH
+          sed -i "/KERNEL_PATCHVER=/c\KERNEL_PATCHVER=5.4" "target/linux/bcm27xx/Makefile"
+
+      - name: Download Package
+        id: package
+        run: |
+          cd $OPENWRTROOT
+          make defconfig
+          make download -j16 && make download -j16
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: Compile Tools
+        id: tools
+        run: |
+          cd $OPENWRTROOT
+          echo -e "$(nproc) thread compile"
+          make tools/compile -j$(nproc) || make tools/compile -j1 V=s
+
+      - name: Compile Packages
+        id: compile
+        run: |
+          cd $OPENWRTROOT
+          echo -e "$(nproc) thread compile"
+          make target/compile -j$(nproc) || make target/compile -j1 V=s IGNORE_ERRORS=1
+          make diffconfig
+          make package/compile -j$(nproc) IGNORE_ERRORS=1 || make package/compile -j1 V=s IGNORE_ERRORS=1
+          make package/index
+          cd $OPENWRTROOT/bin/packages/*
+          PLATFORM=$(basename `pwd`)
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+          echo "::set-output name=PLATFORM::$(echo $PLATFORM)"
+          cd $OPENWRTROOT/bin/targets/*
+          TARGET=$(basename `pwd`)
+          echo "TARGET=$TARGET" >> $GITHUB_ENV
+          echo "::set-output name=TARGET::$(echo $TARGET)"
+          cd *
+          SUBTARGET=$(basename `pwd`)
+          echo "SUBTARGET=$SUBTARGET" >> $GITHUB_ENV
+          echo "::set-output name=SUBTARGET::$(echo $SUBTARGET)"
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "::set-output name=FIRMWARE::$(echo $PWD)"
+          echo "::set-output name=COMPILE_STATUS::success"
+          #Copy files to 
+          mkdir -p files/www/ipv6-modules
+          cp bin/packages/$PLATFORM/luci/luci-app-* files/www/ipv6-modules
+
+      - name: Organize Files
+        id: organize
+        if: env.UPLOAD_FIRMWARE == 'true' && steps.generate.outputs.GENERATE_STATUS == 'success' && !cancelled()
+        run: |
+          cd openwrt/bin/packages
+          find . -type f -name 'luci-app-libernet' | while read FILE ; do
+            echo -e "helmilog:: luci-app-libernet located at $(readlink -f ${FILE})" ;
+          done
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "::set-output name=status::success"
+          echo "::set-output name=ORGANIZE_STATUS::success"
+          echo -e "===== End of Information ====="
+          echo -e "FILE_DATE is ....... $FILE_DATE"
+          echo -e "OPENWRTROOT is ....... $TARGET"
+          echo -e "PLATFORM is ....... $PLATFORM"
+          echo -e "TARGET is ....... $TARGET"
+          echo -e "FIRMWARE is ....... $FIRMWARE"
+          echo -e "===== End of Information ====="
