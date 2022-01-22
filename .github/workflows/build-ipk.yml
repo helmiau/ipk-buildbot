@@ -124,8 +124,8 @@ jobs:
           echo "::set-output name=FIRMWARE::$(echo $PWD)"
           echo "::set-output name=COMPILE_STATUS::success"
           #Copy files to 
-          mkdir -p files/www/ipv6-modules
-          cp bin/packages/$PLATFORM/luci/luci-app-* files/www/ipv6-modules
+          #mkdir -p files/www/ipv6-modules
+          #cp bin/packages/$PLATFORM/luci/luci-app-* files/www/ipv6-modules
 
       - name: Organize Files
         id: organize
