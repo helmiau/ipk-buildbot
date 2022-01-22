@@ -129,7 +129,7 @@ jobs:
 
       - name: Organize Files
         id: organize
-        if: env.UPLOAD_FIRMWARE == 'true' && steps.generate.outputs.GENERATE_STATUS == 'success' && !cancelled()
+        if: steps.compile.outputs.COMPILE_STATUS == 'success' && !cancelled()
         run: |
           cd openwrt/bin/packages
           find . -type f -name 'luci-app-libernet' | while read FILE ; do
