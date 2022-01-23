@@ -19,10 +19,9 @@ on:
 env:
   TOOLCHAIN_TAG: coolsnowwolf-lede-master
   TOOLCHAIN_NAME: toolchain-image-coolsnowwolf-lede-master-rpi-4.img
-  CONFIG_FILE: config/universal.config
-  DIY1_SH: scripts/hook-feeds.sh
-  DIY2_SH: scripts/lean-openwrt.sh
-  WEBROOT: /data/dnmp/www/openwrt.cc
+  CONFIG_FILE: ipk-build/universal.config
+  DIY1_SH: ipk-build/hook-feeds.sh
+  DIY2_SH: ipk-build/lean-openwrt.sh
   UPLOAD_RELEASE: true
   TZ: Asia/Jakarta
   THIS_REPO_NAME: ${{ github.event.repository.name }}
