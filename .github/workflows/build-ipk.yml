@@ -24,6 +24,7 @@ env:
   WEBROOT: /data/dnmp/www/openwrt.cc
   UPLOAD_RELEASE: true
   TZ: Asia/Jakarta
+  THIS_REPO_NAME: ${{ github.event.repository.name }}
 
 jobs:
   Build:
@@ -132,12 +133,10 @@ jobs:
         if: steps.compile.outputs.COMPILE_STATUS == 'success' && !cancelled()
         run: |
           cd openwrt/bin/packages
-          find . -type f -name 'luci-app-*' | while read FILE ; do
-            echo -e "helmilog:: luci app located at $(readlink -f ${FILE})" ;
+          find . -type f -name 'luci-*' | while read FILE ; do
+            echo -e "helmilog:: luci app and theme located at $(readlink -f ${FILE})" ;
           done
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-          echo "::set-output name=status::success"
-          echo "::set-output name=ORGANIZE_STATUS::success"
           echo -e "===== End of Information ====="
           echo -e "FILE_DATE is ....... $FILE_DATE"
           echo -e "OPENWRTROOT is ....... $TARGET"
@@ -145,3 +144,35 @@ jobs:
           echo -e "TARGET is ....... $TARGET"
           echo -e "FIRMWARE is ....... $FIRMWARE"
           echo -e "===== End of Information ====="
+          echo "::set-output name=status::success"
+          echo "::set-output name=ORGANIZE_STATUS::success"
+
+      - name: Delete Older Releases and Tags
+        uses: dev-drprasad/delete-older-releases@v0.2.0
+        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
+        with:
+          keep_latest: 0
+          delete_tags: true
+          delete_tag_pattern: ipk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate New Release Tag
+        id: tag
+        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+        run: |
+          sleep 20
+          echo "::set-output name=release_tag::ipk"
+          touch release.txt
+          echo "::set-output name=status::success"
+
+      - name: Upload HelmiWrt Packages to GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          prerelease: true
+          name: HelmiWrt IPK releases ${{ env.FILE_DATE }}
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          files: /home/runner/work/${{ env.THIS_REPO_NAME }}/${{ env.THIS_REPO_NAME }}/openwrt/bin/packages/${{ env.PLATFORM }}/base/luci-*
