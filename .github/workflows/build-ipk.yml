@@ -73,7 +73,7 @@ jobs:
         id: feeds
         run: |
           cd $OPENWRTROOT
-          chmod +x ../scripts/*.sh
+          chmod +x ../ipk-build/*.sh
           ../$DIY1_SH
 
       - name: Load Custom Configuration
