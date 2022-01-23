@@ -134,8 +134,8 @@ jobs:
             echo -e "helmilog:: luci app and theme located at $(readlink -f ${FILE})" ;
           done
           # Set LuCI Theme and App Path
-          echo "THEMEPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/${{ env.PLATFORM }}/base/luci-theme" >> $GITHUB_ENV
-          echo "APPPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/${{ env.PLATFORM }}/base/luci-app" >> $GITHUB_ENV
+          echo "THEMEPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-theme" >> $GITHUB_ENV
+          echo "APPPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-app" >> $GITHUB_ENV
           # Delete Firewall IPK
           rm $APPPATH-firewall_*
           # Checking Files and places
@@ -154,12 +154,12 @@ jobs:
       - name: Delete Older Releases and Tags
         uses: dev-drprasad/delete-older-releases@v0.2.0
         if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.ORGANIZE_STATUS == 'success' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           keep_latest: 0
           delete_tags: true
           delete_tag_pattern: ipk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate New Release Tag
         id: tag
@@ -180,5 +180,5 @@ jobs:
           name: HelmiWrt IPK releases ${{ env.FILE_DATE }}
           tag_name: ${{ steps.tag.outputs.release_tag }}
           files: |
-            ${{ env.THEMEPATH }}-*
-            ${{ env.APPPATH }}-*
+            $THEMEPATH-*
+            $APPPATH-*
