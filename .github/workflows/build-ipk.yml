@@ -124,9 +124,6 @@ jobs:
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "::set-output name=FIRMWARE::$(echo $PWD)"
           echo "::set-output name=COMPILE_STATUS::success"
-          #Copy files to 
-          #mkdir -p files/www/ipv6-modules
-          #cp bin/packages/$PLATFORM/luci/luci-app-* files/www/ipv6-modules
 
       - name: Organize Files
         id: organize
@@ -175,4 +172,4 @@ jobs:
           prerelease: true
           name: HelmiWrt IPK releases ${{ env.FILE_DATE }}
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: /home/runner/work/${{ env.THIS_REPO_NAME }}/${{ env.THIS_REPO_NAME }}/openwrt/bin/packages/${{ env.PLATFORM }}/base/luci-*
+          files: $GITHUB_WORKSPACE/openwrt/bin/packages/${{ env.PLATFORM }}/base/luci-*
