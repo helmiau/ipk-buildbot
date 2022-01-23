@@ -132,8 +132,8 @@ jobs:
         if: steps.compile.outputs.COMPILE_STATUS == 'success' && !cancelled()
         run: |
           cd openwrt/bin/packages
-          find . -type f -name 'luci-app-libernet' | while read FILE ; do
-            echo -e "helmilog:: luci-app-libernet located at $(readlink -f ${FILE})" ;
+          find . -type f -name 'luci-app-*' | while read FILE ; do
+            echo -e "helmilog:: luci app located at $(readlink -f ${FILE})" ;
           done
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "::set-output name=status::success"
