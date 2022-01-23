@@ -20,7 +20,8 @@ env:
   TOOLCHAIN_TAG: coolsnowwolf-lede-master
   TOOLCHAIN_NAME: toolchain-image-coolsnowwolf-lede-master-rpi-4.img
   CONFIG_FILE: config/universal.config
-  DIY_SH: scripts/lean-openwrt.sh
+  DIY1_SH: scripts/hook-feeds.sh
+  DIY2_SH: scripts/lean-openwrt.sh
   WEBROOT: /data/dnmp/www/openwrt.cc
   UPLOAD_RELEASE: true
   TZ: Asia/Jakarta
@@ -74,14 +75,14 @@ jobs:
         run: |
           cd $OPENWRTROOT
           chmod +x ../scripts/*.sh
-          ../scripts/hook-feeds.sh
+          ../$DIY1_SH
 
       - name: Load Custom Configuration
         run: |
           [ -e files ] && mv files $OPENWRTROOT/files
           [ -e $CONFIG_FILE ] && mv $CONFIG_FILE $OPENWRTROOT/.config
           cd $OPENWRTROOT
-          ../$DIY_SH
+          ../$DIY2_SH
           sed -i "/KERNEL_PATCHVER=/c\KERNEL_PATCHVER=5.4" "target/linux/bcm27xx/Makefile"
 
       - name: Download Package
@@ -146,7 +147,7 @@ jobs:
 
       - name: Delete Older Releases and Tags
         uses: dev-drprasad/delete-older-releases@v0.2.0
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
+        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
         with:
           keep_latest: 0
           delete_tags: true
@@ -156,7 +157,7 @@ jobs:
 
       - name: Generate New Release Tag
         id: tag
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
         run: |
           sleep 20
           echo "::set-output name=release_tag::ipk"
@@ -165,7 +166,7 @@ jobs:
 
       - name: Upload HelmiWrt Packages to GitHub Release
         uses: softprops/action-gh-release@v1
-        if: steps.generate.outputs.GENERATE_STATUS == 'success' && steps.tag.outputs.status == 'success' && !cancelled()
+        if: steps.tag.outputs.status == 'success' && !cancelled()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
