@@ -183,5 +183,5 @@ jobs:
           name: HelmiWrt IPK releases ${{ env.FILE_DATE }}
           tag_name: ${{ steps.tag.outputs.release_tag }}
           files: |
-            $THEMEPATH-*
-            $APPPATH-*
+            ${{ env.THEMEPATH }}-*
+            ${{ env.APPPATH }}-*
