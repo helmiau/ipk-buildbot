@@ -130,6 +130,11 @@ jobs:
         if: steps.compile.outputs.COMPILE_STATUS == 'success' && !cancelled()
         run: |
           cd openwrt/bin/packages
+          # Delete Firewall IPK
+          find . -type f -name 'luci-app-firewall*' | while read FILE ; do
+            rm -f ${FILE} ;
+          done
+          # Checking all IPK's location
           find . -type f -name 'luci-*' | while read FILE ; do
             echo -e "helmilog:: luci app and theme located at $(readlink -f ${FILE})" ;
             echo -e "helmilog:: luci app and theme located at $(readlink -f ${FILE})" ;
@@ -137,10 +142,6 @@ jobs:
           # Set LuCI Theme and App Path
           echo "THEMEPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-theme" >> $GITHUB_ENV
           echo "APPPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-app" >> $GITHUB_ENV
-          # Delete Firewall IPK
-          find . -type f -name 'luci-app-firewall*' | while read FILE ; do
-            rm -f ${FILE} ;
-          done
           # Checking Files and places
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo -e "===== End of Information ====="
