@@ -137,7 +137,7 @@ jobs:
           echo "THEMEPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-theme" >> $GITHUB_ENV
           echo "APPPATH=$GITHUB_WORKSPACE/openwrt/bin/packages/$PLATFORM/base/luci-app" >> $GITHUB_ENV
           # Delete Firewall IPK
-          rm $APPPATH-firewall_*
+          rm -f $PLATFORM/base/luci-app-firewall*
           # Checking Files and places
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo -e "===== End of Information ====="
