@@ -147,7 +147,7 @@ jobs:
 
       - name: Delete Older Releases and Tags
         uses: dev-drprasad/delete-older-releases@v0.2.0
-        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && !cancelled()
+        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.ORGANIZE_STATUS == 'success' && !cancelled()
         with:
           keep_latest: 0
           delete_tags: true
@@ -157,7 +157,7 @@ jobs:
 
       - name: Generate New Release Tag
         id: tag
-        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+        if: steps.compile.outputs.GENERATE_STATUS == 'success' && steps.organize.outputs.ORGANIZE_STATUS == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
         run: |
           sleep 20
           echo "::set-output name=release_tag::ipk"
